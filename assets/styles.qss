@@ -1,0 +1,155 @@
+/* ========================================================= */
+/* 1. GLOBAL STYLES (Backgrounds, fonts, and typography)     */
+/* ========================================================= */
+QWidget {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 14px;
+    color: #333333;
+    background-color: #F8F9FA; /* Ultra-light gray main background */
+}
+
+QLabel#TitleLabel {
+    font-size: 22px;
+    font-weight: bold;
+    color: #111827; /* Dark slate gray for application titles */
+}
+
+/* ========================================================= */
+/* 2. INPUTS AND LISTS (Text fields, dropdown menus)         */
+/* ========================================================= */
+QComboBox, QLineEdit, QListWidget {
+    border: 1px solid #D1D5DB;
+    border-radius: 6px;
+    padding: 6px;
+    background-color: #FFFFFF;
+    color: #111827;
+}
+
+QLineEdit:focus, QComboBox:focus {
+    border: 1px solid #2563EB; /* Blue border highlight on focus */
+}
+
+/* ========================================================= */
+/* 3. PRIMARY BUTTONS (Default blue theme)                   */
+/* ========================================================= */
+QPushButton {
+    background-color: #2563EB; /* Primary brand blue */
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-weight: bold;
+}
+
+QPushButton:hover { 
+    background-color: #1D4ED8; /* Darker blue on hover state */
+}
+
+/* ========================================================= */
+/* 4. SPECIFIC BUTTON CLASSES (Success, Secondary, Close)    */
+/* ========================================================= */
+
+/* Success Button (Green variant for positive actions e.g., Save/Export) */
+QPushButton[class="SuccessButton"] { 
+    background-color: #10B981; 
+}
+QPushButton[class="SuccessButton"]:hover { 
+    background-color: #059669; 
+}
+
+/* Secondary Button (Light blue outline variant for secondary actions) */
+QPushButton[class="SecondaryButton"] { 
+    background-color: #EFF6FF; /* Very light blue background */
+    color: #2563EB; /* Blue text matching primary theme */
+    border: 1px solid #BFDBFE;
+}
+QPushButton[class="SecondaryButton"]:hover { 
+    background-color: #DBEAFE; /* Slightly darker background on hover */
+}
+
+/* Close Button (Small red circular button primarily for the Merge view) */
+QPushButton[class="CloseButton"] {
+    background-color: #EF4444; 
+    color: white;
+    border-radius: 10px; /* Fully rounded / Circular */
+    padding: 2px;
+    min-width: 20px; 
+    min-height: 20px;
+    max-width: 20px; 
+    max-height: 20px;
+}
+QPushButton[class="CloseButton"]:hover { 
+    background-color: #DC2626; 
+}
+
+/* ========================================================= */
+/* 5. SIDEBAR NAVIGATION                                     */
+/* ========================================================= */
+
+/* Dark background for the sidebar container */
+QWidget#Sidebar {
+    background-color: #1F2937;
+    border-right: 1px solid #111827;
+}
+
+/* Standard sidebar navigation buttons */
+QWidget#Sidebar QPushButton[class="SidebarButton"] {
+    background-color: transparent;
+    color: #D1D5DB; /* Light gray text */
+    text-align: left;
+    padding: 12px 16px;
+    font-weight: bold;
+    border-radius: 4px;
+    border: none;
+}
+
+QWidget#Sidebar QPushButton[class="SidebarButton"]:hover {
+    background-color: #374151; /* Medium gray on hover */
+    color: white;
+}
+
+/* Active/Checked state for sidebar buttons */
+QWidget#Sidebar QPushButton[class="SidebarButton"]:checked {
+    background-color: #EE0000; /* Active highlight color */
+    color: white;
+}
+
+/* Home button specific styling inside the sidebar */
+QWidget#Sidebar QPushButton[class="HomeButton"] {
+    background-color: transparent;
+    color: #D1D5DB; 
+    text-align: center; /* Centered text, unlike standard sidebar buttons */
+    padding: 12px 16px;
+    font-weight: bold;
+    border-radius: 4px;
+    border: none;
+}
+
+QWidget#Sidebar QPushButton[class="HomeButton"]:hover {
+    background-color: #374151; 
+    color: white;
+}
+
+/* ========================================================= */
+/* 6. CHECKBOXES                                             */
+/* ========================================================= */
+
+/* Default checkbox indicator state */
+QCheckBox::indicator {
+    width: 10px;
+    height: 10px;
+    border: 1px solid #888888;
+    border-radius: 4px;
+    background-color: #FFFFFF;
+}
+
+QCheckBox::indicator:hover {
+    border: 1px solid #555555; /* Slightly darker gray border on hover */
+}
+
+/* Checked state with custom SVG checkmark */
+QCheckBox::indicator:checked {
+    background-color: #0078D7;
+    border: 2px solid #0078D7;
+    image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'><path d='M20 6L9 17l-5-5'/></svg>");
+}
