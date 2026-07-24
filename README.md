@@ -50,16 +50,17 @@
 
 2. **Crear y activar entorno virtual:**
    # Windows
+   ```bash
    python -m venv .venv
    .venv\Scripts\activate
    ```
 
-3. **Instalar dependencias:**
+4. **Instalar dependencias:**
    ```bash
    pip install -r requirements.txt
    ```
 
-4. **Ejecutar en modo desarrollo:**
+5. **Ejecutar en modo desarrollo:**
    ```bash
    python main.py
    ```
