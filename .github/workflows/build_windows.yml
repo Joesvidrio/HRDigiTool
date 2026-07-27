@@ -1,37 +1,36 @@
-name: Build Windows Executable
+name: Build Windows EXE
 
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-  workflow_dispatch: # Permite ejecutar el build manualmente desde la interfaz de GitHub
+  workflow_dispatch:
 
 jobs:
-  build-windows:
+  build:
+    name: Build para Windows
     runs-on: windows-latest
 
     steps:
-    - name: Checkout repository code
+    - name: Descargar el código
       uses: actions/checkout@v4
 
-    - name: Set up Python 3.11
+    - name: Configurar Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
-    - name: Install dependencies
+    - name: Instalar dependencias
       run: |
         python -m pip install --upgrade pip
         pip install pyinstaller
-        if (Test-Path requirements.txt) { pip install -r requirements.txt }
+        pip install -r requirements.txt || pip install PyQt6 PyMuPDF
 
-    - name: Build Executable with PyInstaller
+    - name: Compilar con PyInstaller
       run: |
-        pyinstaller main_windows.spec --clean
+        pyinstaller --name "HR_DigiTool" --windowed --onefile --icon="LOGO.png" --add-data "LOGO.png;." main.py
 
-    - name: Upload Build Artifacts
+    - name: Subir el ejecutable a GitHub
       uses: actions/upload-artifact@v4
       with:
-        name: HRDigiTool-Windows
-        path: dist/HRDigiTool/
+        name: HR_DigiTool-Windows
+        path: dist/*
