@@ -6,27 +6,27 @@ from backend.pdf_core import PDFProcessor
 
 
 class SecurityView(QWidget):
-    """
-    View module for PDF encryption, decryption, and metadata sanitization.
+    """View module for PDF encryption, decryption, and metadata sanitization.
     
     Provides a user interface for stripping sensitive metadata, applying AES-256
     encryption with a password, and removing password protection from PDFs.
+    
+    Attributes:
+        current_file (str | None): The absolute path to the currently loaded PDF file.
     """
     
     def __init__(self):
         """Initializes the SecurityView and enables drag-and-drop functionality."""
         super().__init__()
         self.current_file = None
-        self.setAcceptDrops(True) # Enable Drag & Drop
+        self.setAcceptDrops(True)
         self.init_ui()
 
-    # --- DRAG & DROP FUNCTIONS ---
     def dragEnterEvent(self, event):
-        """
-        Validates the dragged item, accepting it only if it is a single PDF file.
+        """Validates the dragged item, accepting it only if it is a single PDF file.
         
         Args:
-            event (QDragEnterEvent): The drag enter event.
+            event (QDragEnterEvent): The drag enter event containing the dragged data.
         """
         if event.mimeData().hasUrls():
             urls = event.mimeData().urls()
@@ -36,15 +36,13 @@ class SecurityView(QWidget):
         event.ignore()
 
     def dropEvent(self, event):
-        """
-        Handles the dropped file and loads it into the view.
+        """Handles the dropped file and loads it into the view.
         
         Args:
             event (QDropEvent): The drop event containing the file data.
         """
         file_path = event.mimeData().urls()[0].toLocalFile()
         self.load_file(file_path)
-    # ----------------------------------
 
     def init_ui(self):
         """Constructs the layout and visual components of the Security module."""
@@ -56,7 +54,6 @@ class SecurityView(QWidget):
 
         file_layout = QHBoxLayout()
         
-        # --- Primary Button (Blue by default) ---
         btn_select = QPushButton("Select PDF")
         btn_select.clicked.connect(self.select_file)
         
@@ -77,13 +74,11 @@ class SecurityView(QWidget):
         layout.addWidget(line)
         layout.addSpacing(10)
 
-        # Section 1: Metadata Cleanup
         layout.addWidget(QLabel("<b>1. Privacy Cleanup</b>"))
         desc_clean = QLabel("Removes author, creator software, dates, and hidden local paths from the file.")
         desc_clean.setStyleSheet("color: #4B5563; margin-bottom: 10px;")
         layout.addWidget(desc_clean)
         
-        # --- Success Button (Green for final actions) ---
         btn_clean = QPushButton("Save Clean PDF")
         btn_clean.setProperty("class", "SuccessButton") 
         btn_clean.clicked.connect(self.clean_metadata)
@@ -91,7 +86,6 @@ class SecurityView(QWidget):
 
         layout.addSpacing(20)
 
-        # Section 2: Encryption
         layout.addWidget(QLabel("<b>2. Protect with Password</b>"))
         desc_encrypt = QLabel("Applies AES-256 encryption to prevent unauthorized users from opening the PDF.")
         desc_encrypt.setStyleSheet("color: #4B5563; margin-bottom: 10px;")
@@ -102,7 +96,6 @@ class SecurityView(QWidget):
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
         layout.addWidget(self.password_input)
         
-        # --- Success Button (Green) ---
         btn_encrypt = QPushButton("Save Encrypted PDF")
         btn_encrypt.setProperty("class", "SuccessButton")
         btn_encrypt.clicked.connect(self.encrypt_file)
@@ -110,7 +103,6 @@ class SecurityView(QWidget):
 
         layout.addSpacing(20)
 
-        # Section 3: Decryption
         layout.addWidget(QLabel("<b>3. Remove Password (Decrypt)</b>"))
         desc_decrypt = QLabel("Enter the current password to save an unprotected copy of the file.")
         desc_decrypt.setStyleSheet("color: #4B5563; margin-bottom: 10px;")
@@ -121,7 +113,6 @@ class SecurityView(QWidget):
         self.decrypt_password_input.setEchoMode(QLineEdit.EchoMode.Password)
         layout.addWidget(self.decrypt_password_input)
 
-        # --- Success Button (Green) ---
         btn_decrypt = QPushButton("Save Unprotected PDF")
         btn_decrypt.setProperty("class", "SuccessButton") 
         btn_decrypt.clicked.connect(self.decrypt_file)
@@ -133,28 +124,28 @@ class SecurityView(QWidget):
         """Opens a file dialog for the user to select a PDF."""
         file, _ = QFileDialog.getOpenFileName(self, "Select PDF", "", "PDF Files (*.pdf)")
         if file:
-            self.current_file = file
-            self.file_label.setText(os.path.basename(file))
+            self.load_file(file)
 
     def add_files(self, files: list[str]):
-        """
-        Receives a list of file paths forwarded from other application modules (e.g., Reader).
+        """Receives a list of file paths forwarded from other application modules (e.g., Reader).
         
         Args:
             files (list[str]): A list of absolute file paths.
         """
         if files and len(files) > 0:
-            # Security only operates on one file at a time, so we take the first item in the list
-            self.current_file = files[0]
-            self.file_label.setText(os.path.basename(self.current_file))
+            self.load_file(files[0])
 
-    def load_file(self, file_path: str):
-        """
-        Directly loads a file path into the view, used by drag-and-drop or direct string passing.
+    def load_file(self, file_path):
+        """Directly loads a file path into the view, used by drag-and-drop or direct string passing.
         
         Args:
-            file_path (str): The absolute path to the PDF file.
+            file_path (str | list[str]): The absolute path (or list of paths) to the PDF file.
         """
+        if isinstance(file_path, list):
+            if not file_path:
+                return
+            file_path = file_path[0]
+            
         if file_path and isinstance(file_path, str):
             self.current_file = file_path
             self.file_label.setText(os.path.basename(file_path))
@@ -202,8 +193,7 @@ class SecurityView(QWidget):
                 self.decrypt_password_input.clear()
 
     def _show_result(self, success: bool, msg: str):
-        """
-        Helper UI method to standardize success and error popup messages.
+        """Helper UI method to standardize success and error popup messages.
         
         Args:
             success (bool): Indicates if the operation was successful.

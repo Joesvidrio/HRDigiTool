@@ -1,11 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller specification file for building the HR DigiTool Windows Executable.
-
-This specification file handles:
-- Bundling required static assets (icons and QSS stylesheets) using Windows path separators (;).
-- Excluding unused heavy dependencies (PyQt6 modules, data science libraries) to reduce build size.
-- Packaging as a windowed application without a command prompt window.
+PyInstaller specification file for building the HR DigiTool Windows Executable (One-File).
 """
 
 block_cipher = None
@@ -14,7 +9,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    # 1. Bundled resources: App logo and asset directory (Windows uses ';' separator)
+    # 1. Bundled resources: App logo and asset directory
     datas=[
         ('LOGO.png', '.'),
         ('assets', 'assets'),
@@ -32,7 +27,7 @@ a = Analysis(
         'PyQt6.QtPositioning', 'PyQt6.QtSensors', 'PyQt6.QtSerialPort',
         'PyQt6.QtXml', 'PyQt6.QtSvg', 'PyQt6.QtDesigner', 'PyQt6.QtHelp',
         'PyQt6.QtTextToSpeech', 'PyQt6.QtWebSockets', 'PyQt6.QtDBus',
-        'PyQt6.QtPrintSupport', 'PyQt6.QtVirtualKeyboard', 'PyQt6.Qt3DCore',
+        'PyQt6.QtVirtualKeyboard', 'PyQt6.Qt3DCore',
         'tkinter', 'unittest', 'email', 'pydoc', 'doctest', 'pdb', 'xmlrpc',
         'sqlite3', 'numpy', 'pandas', 'matplotlib', 'IPython', 'scipy'
     ],
@@ -42,31 +37,25 @@ a = Analysis(
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
+# 3. El bloque EXE ahora empaca todo (scripts, binaries, datas) en un solo archivo
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.datas,
     [],
-    exclude_binaries=True,
     name='HRDigiTool',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=False,              # Disabled on Windows (strip is primarily for ELF/Mach-O binaries)
-    upx=True,                 # Compresses binaries using UPX if installed
-    console=False,            # Suppress command prompt window
+    strip=False,              
+    upx=True,                 
+    upx_exclude=[],
+    runtime_tmpdir=None,      # Necesario para extraer los temporales del One-File en tiempo de ejecución
+    console=False,            # Oculta la consola negra de Windows
     disable_windowed_traceback=False,
-    argv_emulation=False,     # macOS specific option (must be False on Windows)
+    argv_emulation=False,     
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['LOGO.ico'],        # Windows icon (.ico format required)
-)
-
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='HRDigiTool',
+    icon=['LOGO.ico'],        
 )

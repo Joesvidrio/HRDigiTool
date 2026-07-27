@@ -1,6 +1,7 @@
 import sys
 import os
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QStackedWidget
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+                             QHBoxLayout, QPushButton, QStackedWidget)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon 
 from utils import get_resource_path
@@ -11,20 +12,31 @@ from ui.views.merge_view import MergeView
 from ui.views.organize_view import OrganizeView
 from ui.views.security_view import SecurityView
 
+
 class MainWindow(QMainWindow):
-    """
-    Main application window acting as a container and router for all internal views.
+    """Main application window acting as a container and router for all internal views.
     
     Manages navigation, layout, global UI state (sidebar/topbar visibility), 
     and handles OS-level file opening logic (e.g., "Open with...").
+    
+    Attributes:
+        central_widget (QWidget): The main central widget of the window.
+        main_layout (QHBoxLayout): The primary layout holding the sidebar and the main content.
+        sidebar (QWidget): The navigation sidebar container.
+        top_bar (QWidget): The top navigation bar containing the menu toggle.
+        stacked_widget (QStackedWidget): The container holding all application views.
+        home_view (HomeView): The main landing view of the application.
+        reader_view (ReaderView): The PDF reading and rendering module.
+        merge_view (MergeView): The module for merging multiple PDFs and images.
+        organize_view (OrganizeView): The module for organizing, deleting, and rotating pages.
+        security_view (SecurityView): The module for encryption, decryption, and metadata cleanup.
     """
     
     def __init__(self, argv=None):
-        """
-        Initializes the main window, sets up layouts, and loads initial views.
+        """Initializes the main window, sets up layouts, and loads initial views.
 
         Args:
-            argv (list[str], optional): Command line arguments passed to the application. 
+            argv (list[str] | None, optional): Command line arguments passed to the application. 
                 Used to detect if a file was passed via the OS to open directly. Defaults to None.
         """
         super().__init__()
@@ -76,16 +88,14 @@ class MainWindow(QMainWindow):
         self.top_bar.hide()
         self.stacked_widget.setCurrentIndex(0)
 
-        # Handle "Open with..." context logic
         if argv and len(argv) > 1:
             file_path = argv[1]
             if os.path.isfile(file_path) and file_path.lower().endswith('.pdf'):
-                self.switch_view(1) # Index 1 is ReaderView
+                self.switch_view(1) 
                 self.reader_view.load_file(file_path)
 
     def setup_sidebar(self):
-        """
-        Constructs the sidebar navigation menu.
+        """Constructs the sidebar navigation menu.
         
         Configures the layout, registers routing buttons, and establishes 
         the connections necessary to switch between the application modules.
@@ -123,8 +133,7 @@ class MainWindow(QMainWindow):
         self.main_layout.addWidget(self.sidebar)
 
     def setup_stacked_widget(self):
-        """
-        Initializes and configures the QStackedWidget containing all application views.
+        """Initializes and configures the QStackedWidget containing all application views.
         
         Instantiates the Home, Reader, Merge, Organize, and Security views, passing 
         the required callbacks for inter-module file routing.
@@ -132,19 +141,19 @@ class MainWindow(QMainWindow):
         self.stacked_widget = QStackedWidget()
         
         self.home_view = HomeView(navigate_callback=self.switch_view)
-        self.stacked_widget.addWidget(self.home_view) # Index 0
+        self.stacked_widget.addWidget(self.home_view) 
         
         self.reader_view = ReaderView(navigate_callback=self.route_file_to_module)
-        self.stacked_widget.addWidget(self.reader_view) # Index 1
+        self.stacked_widget.addWidget(self.reader_view) 
 
         self.merge_view = MergeView(navigate_to_organize_cb=self.route_to_organize)
-        self.stacked_widget.addWidget(self.merge_view) # Index 2
+        self.stacked_widget.addWidget(self.merge_view) 
 
         self.organize_view = OrganizeView()
-        self.stacked_widget.addWidget(self.organize_view) # Index 3
+        self.stacked_widget.addWidget(self.organize_view) 
 
         self.security_view = SecurityView()
-        self.stacked_widget.addWidget(self.security_view) # Index 4
+        self.stacked_widget.addWidget(self.security_view) 
 
         self.right_layout.addWidget(self.stacked_widget)
 
@@ -155,9 +164,8 @@ class MainWindow(QMainWindow):
         else:
             self.sidebar.show()
 
-    def route_to_organize(self, temp_pdf_path):
-        """
-        Routes a temporarily generated PDF to the Organize view and displays it.
+    def route_to_organize(self, temp_pdf_path: str):
+        """Routes a temporarily generated PDF to the Organize view and displays it.
 
         Args:
             temp_pdf_path (str): The absolute path to the generated temporary PDF file.
@@ -165,26 +173,26 @@ class MainWindow(QMainWindow):
         self.organize_view.load_file(temp_pdf_path)
         self.switch_view(3)
         
-    def route_file_to_module(self, module_index, file_path):
-        """
-        Forwards a file from the Reader view to a specific destination module and switches to it.
+    def route_file_to_module(self, module_index: int, file_path: str | list[str]):
+        """Forwards a file from the Reader view to a specific destination module and switches to it.
 
         Args:
             module_index (int): The index of the target view in the stacked widget.
-            file_path (str | list[str]): The path (or list of paths depending on the 
-                emitter) to the file being routed.
+            file_path (str | list[str]): The path (or list of paths) to the file being routed.
         """
         self.switch_view(module_index)
-        if module_index == 2:
-            self.merge_view.add_files_from_paths([file_path])
-        elif module_index == 3:
-            self.organize_view.load_file(file_path)
-        elif module_index == 4:
-            self.security_view.load_file(file_path)
+        
+        pure_path = file_path[0] if isinstance(file_path, list) and file_path else file_path
 
-    def switch_view(self, index):
-        """
-        Changes the visible view in the stacked widget and synchronizes the UI state.
+        if module_index == 2:
+            self.merge_view.add_files([pure_path])
+        elif module_index == 3:
+            self.organize_view.load_file(pure_path)
+        elif module_index == 4:
+            self.security_view.load_file(pure_path)
+
+    def switch_view(self, index: int):
+        """Changes the visible view in the stacked widget and synchronizes the UI state.
         
         Hides the sidebar, reveals the top bar, and ensures the correct sidebar 
         navigation button is shown as actively checked.
@@ -195,12 +203,12 @@ class MainWindow(QMainWindow):
         self.stacked_widget.setCurrentIndex(index)
         self.sidebar.hide()
         self.top_bar.show()
+        
         for i, btn in enumerate(self.sidebar_buttons):
             btn.setChecked(i == (index - 1))
 
     def go_home(self):
-        """
-        Returns the application to the main Home view.
+        """Returns the application to the main Home view.
         
         Resets the navigation UI by hiding both the top bar and sidebar, 
         and unchecking all active module indicators.
