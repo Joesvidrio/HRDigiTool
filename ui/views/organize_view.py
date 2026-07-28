@@ -31,7 +31,7 @@ class ZoomableView(QGraphicsView):
         
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+        self.setDragMode(QGraphicsView.DragMode.NoDrag)
         self.setStyleSheet("background-color: #E5E7EB; border: 1px solid #D1D5DB; border-radius: 6px;")
 
     def set_image(self, pixmap: QPixmap, reset_transform: bool = False):
@@ -399,7 +399,7 @@ class OrganizeView(QWidget):
         
         for i in range(len(doc)):
             page = doc[i]
-            pix = page.get_pixmap(matrix=mat)
+            pix = page.get_pixmap(matrix=mat, alpha=False)
             img = QImage(pix.samples, pix.width, pix.height, pix.stride, QImage.Format.Format_RGB888)
             pixmap = QPixmap.fromImage(img)
             
@@ -461,8 +461,8 @@ class OrganizeView(QWidget):
             if rotation != 0:
                 mat.prerotate(rotation)
                 
-            pix = page.get_pixmap(matrix=mat, alpha=True)
-            fmt = QImage.Format.Format_RGBA8888 if pix.alpha else QImage.Format.Format_RGB888
+            pix = page.get_pixmap(matrix=mat, alpha=False)
+            fmt = QImage.Format.Format_RGB888
             
             img = QImage(pix.samples, pix.width, pix.height, pix.stride, fmt).copy()
             img.setDevicePixelRatio(dpr)

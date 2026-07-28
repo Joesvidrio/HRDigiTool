@@ -45,7 +45,7 @@ class ReaderGraphicsView(QGraphicsView):
             QPainter.RenderHint.SmoothPixmapTransform | 
             QPainter.RenderHint.TextAntialiasing
         )
-        self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+        self.setDragMode(QGraphicsView.DragMode.NoDrag)
         self.pixmap_item = None
         self.setAcceptDrops(True)
 
@@ -460,8 +460,8 @@ class ReaderView(QWidget):
             mat = fitz.Matrix(0.3, 0.3)
             for i in range(len(self.doc)):
                 page = self.doc[i]
-                pix = page.get_pixmap(matrix=mat)
-                fmt = QImage.Format.Format_RGBA8888 if pix.alpha else QImage.Format.Format_RGB888
+                pix = page.get_pixmap(matrix=mat, alpha=False)
+                fmt = QImage.Format.Format_RGB888
                 img = QImage(pix.samples, pix.width, pix.height, pix.stride, fmt).copy()
                 pixmap = QPixmap.fromImage(img)
                 
@@ -504,9 +504,9 @@ class ReaderView(QWidget):
             
             page = self.doc[page_num - 1]
             mat = fitz.Matrix(total_scale, total_scale) 
-            pix = page.get_pixmap(matrix=mat, alpha=True)
+            pix = page.get_pixmap(matrix=mat, alpha=False)
             
-            fmt = QImage.Format.Format_RGBA8888 if pix.alpha else QImage.Format.Format_RGB888
+            fmt = QImage.Format.Format_RGB888
             img = QImage(pix.samples, pix.width, pix.height, pix.stride, fmt).copy()
             img.setDevicePixelRatio(dpr)
             
@@ -515,8 +515,8 @@ class ReaderView(QWidget):
             self.viewer.set_pixmap(high_res_pixmap)
             self.viewer.resetTransform()
             
-        except Exception as e:
-            print(f"Error viewing page: {e}")
+        except Exception:
+            pass
 
     def bridge_to_module(self, module_index: int):
         """Triggers the navigate callback to route the open file to a target tool.

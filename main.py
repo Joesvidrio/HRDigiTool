@@ -33,11 +33,14 @@ def main():
     if os.path.exists(qss_path):
         with open(qss_path, "r", encoding="utf-8") as f:
             app.setStyleSheet(f.read())
-    else:
-        print(f"Warning: Stylesheet not found at {qss_path}. Continuing without custom styles.")
+            
+    args = sys.argv
+    if len(args) > 1:
+        full_path = " ".join(args[1:])
+        if os.path.exists(full_path):
+            args = [args[0], full_path]
     
-    # Pass sys.argv to MainWindow to handle external file requests (e.g., "Open with...").
-    window = MainWindow(sys.argv)
+    window = MainWindow(args)
     window.show()
     
     sys.exit(app.exec())
