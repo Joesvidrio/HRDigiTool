@@ -26,7 +26,7 @@ jobs:
           pip install pyinstaller
 
       - name: Build Directory with PyInstaller
-        run: pyinstaller main.spec
+        run: pyinstaller main_windows.spec
 
       - name: Compile Installer with Inno Setup
         run: iscc installer.iss
