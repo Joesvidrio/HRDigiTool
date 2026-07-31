@@ -3,26 +3,57 @@ import fitz
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                              QLabel, QLineEdit, QListWidget, QFileDialog, QMessageBox, 
                              QListWidgetItem, QAbstractItemView, QComboBox, QCheckBox,
-                             QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QSplitter)
+                             QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QSplitter,
+                             QListView, QTabWidget, QTabBar)
 from PyQt6.QtGui import (QPixmap, QImage, QIcon, QDragMoveEvent, QTransform, 
                          QWheelEvent, QPainter, QPen, QColor, QShortcut, QKeySequence)
-from PyQt6.QtCore import QSize, Qt, QEvent, pyqtSignal, QTimer
+from PyQt6.QtCore import QSize, Qt, QEvent, pyqtSignal, QTimer, QThread, QObject
+
 from backend.pdf_core import PDFProcessor
 
 
-class ZoomableView(QGraphicsView):
-    """A custom QGraphicsView that provides a high-resolution, zoomable image viewer.
-    
-    Supports panning via drag-and-drop, zooming via keyboard modifiers (Ctrl+Scroll), 
-    and native trackpad pinch-to-zoom gestures.
-    
+class ThumbnailWorker(QObject):
+    """Background worker for rendering PDF thumbnails without blocking the main UI thread.
+
     Attributes:
-        zoom_changed (pyqtSignal): Emitted whenever a zoom gesture modifies the view's scale.
+        progress (pyqtSignal): Emits the page number and its rendered QImage.
+        finished (pyqtSignal): Emitted when all pages are processed.
+        error (pyqtSignal): Emitted if a critical error occurs during processing.
     """
+    progress = pyqtSignal(int, QImage)
+    finished = pyqtSignal()
+    error = pyqtSignal(str)
+
+    def __init__(self, file_path: str):
+        super().__init__()
+        self.file_path = file_path
+        self.is_cancelled = False
+
+    def run(self):
+        """Executes the rendering loop over the PDF pages."""
+        try:
+            doc = fitz.open(self.file_path)
+            mat = fitz.Matrix(0.5, 0.5) 
+            for i in range(len(doc)):
+                if self.is_cancelled:
+                    break
+                page = doc[i]
+                pix = page.get_pixmap(matrix=mat, alpha=False)
+                fmt = QImage.Format.Format_RGB888
+                img = QImage(pix.samples, pix.width, pix.height, pix.stride, fmt).copy()
+                self.progress.emit(i + 1, img)
+            doc.close()
+            self.finished.emit()
+        except Exception as e:
+            self.error.emit(str(e))
+            self.finished.emit()
+
+
+class ZoomableView(QGraphicsView):
+    """A custom QGraphicsView that provides a high-resolution, zoomable image viewer."""
     zoom_changed = pyqtSignal()
     
     def __init__(self):
-        """Initializes the zoomable view and sets up high-quality rendering hints."""
         super().__init__()
         self.scene = QGraphicsScene(self)
         self.setScene(self.scene)
@@ -32,35 +63,22 @@ class ZoomableView(QGraphicsView):
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
-        self.setStyleSheet("background-color: #E5E7EB; border: 1px solid #D1D5DB; border-radius: 6px;")
+        self.setObjectName("ViewerWidget")
 
     def set_image(self, pixmap: QPixmap, reset_transform: bool = False):
-        """Updates the displayed image and adjusts the scene boundaries.
-        
-        Args:
-            pixmap (QPixmap): The image to be displayed in the view.
-            reset_transform (bool, optional): If True, resets the current zoom and pan. Defaults to False.
-        """
+        """Sets the currently displayed high-resolution image."""
         self.pixmap_item.setPixmap(pixmap)
         self.scene.setSceneRect(self.pixmap_item.boundingRect())
-        
         if reset_transform:
             self.resetTransform()
 
     def fit_to_window(self):
-        """Scales the current image to fit entirely within the viewport boundaries."""
+        """Scales the view to fit the entire page within the window bounds."""
         if not self.pixmap_item.pixmap().isNull():
             self.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
 
     def viewportEvent(self, event: QEvent) -> bool:
-        """Handles native trackpad gestures for pinch-to-zoom functionality.
-        
-        Args:
-            event (QEvent): The viewport event to process.
-            
-        Returns:
-            bool: True if the event was handled, otherwise delegates to the parent class.
-        """
+        """Handles native zoom gestures (e.g., trackpad pinch)."""
         if event.type() == QEvent.Type.NativeGesture:
             if event.gestureType() == Qt.NativeGestureType.ZoomNativeGesture:
                 zoom_factor = 1.0 + event.value()
@@ -70,11 +88,7 @@ class ZoomableView(QGraphicsView):
         return super().viewportEvent(event)
 
     def wheelEvent(self, event: QWheelEvent):
-        """Handles mouse wheel events to zoom in or out when the Control key is held.
-        
-        Args:
-            event (QWheelEvent): The wheel event triggered by the user.
-        """
+        """Allows zooming in and out using Ctrl + Mouse Wheel."""
         if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
             factor = 1.15 if event.angleDelta().y() > 0 else (1.0 / 1.15)
             self.scale(factor, factor)
@@ -87,20 +101,11 @@ class AutoScrollListWidget(QListWidget):
     """Custom QListWidget that provides automatic edge-scrolling during drag-and-drop operations."""
     
     def __init__(self, parent=None):
-        """Initializes the auto-scrolling list widget.
-        
-        Args:
-            parent (QWidget, optional): The parent widget. Defaults to None.
-        """
         super().__init__(parent)
         self.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
 
     def dragMoveEvent(self, event: QDragMoveEvent):
-        """Handles drag movements to scroll automatically when near the edges.
-        
-        Args:
-            event (QDragMoveEvent): The drag move event being processed.
-        """
+        """Automatically scrolls the list if the user drags an item near the top or bottom edges."""
         super().dragMoveEvent(event)
         pos = event.position().toPoint()
         scrollbar = self.verticalScrollBar()
@@ -110,28 +115,18 @@ class AutoScrollListWidget(QListWidget):
             scrollbar.setValue(scrollbar.value() + 8)
 
     def wheelEvent(self, event: QWheelEvent):
-        """Custom scroll wheel behavior for smoother scrolling.
-        
-        Args:
-            event (QWheelEvent): The mouse wheel event.
-        """
+        """Smoothes out the mouse wheel scrolling behavior."""
         delta = event.angleDelta().y()
         scrollbar = self.verticalScrollBar()
         scrollbar.setValue(scrollbar.value() - int(delta / 4))
 
 
-class OrganizeView(QWidget):
-    """Main view for organizing, rotating, removing, and compressing PDF pages.
+class OrganizeTab(QWidget):
+    """An individual workspace tab for organizing, rotating, removing, and compressing PDF pages."""
     
-    Attributes:
-        current_file (str): Path to the currently loaded PDF file.
-        original_items (dict): A mapping of page numbers to their respective QListWidgetItem.
-        current_zoom (float): The current zoom level applied to the PDF viewer.
-        render_timer (QTimer): Timer used to debounce vector rendering updates.
-    """
+    title_changed = pyqtSignal(str)
     
     def __init__(self):
-        """Initializes the OrganizeView, sets up the UI, and configures event timers."""
         super().__init__()
         self.current_file = None
         self.original_items = {} 
@@ -147,18 +142,15 @@ class OrganizeView(QWidget):
         self.setup_shortcuts() 
 
     def setup_shortcuts(self):
-        """Configures keyboard shortcuts for quick navigation."""
+        """Sets up keyboard shortcuts for quick page navigation."""
         self.shortcut_right = QShortcut(QKeySequence(Qt.Key.Key_Right), self)
         self.shortcut_right.activated.connect(self.next_page)
-        
         self.shortcut_space = QShortcut(QKeySequence(Qt.Key.Key_Space), self)
         self.shortcut_space.activated.connect(self.next_page)
-
         self.shortcut_left = QShortcut(QKeySequence(Qt.Key.Key_Left), self)
         self.shortcut_left.activated.connect(self.prev_page)
 
     def next_page(self):
-        """Selects the next page in the list widget if available."""
         if self.list_widget.count() > 0:
             current_row = self.list_widget.currentRow()
             if current_row == -1: 
@@ -167,16 +159,15 @@ class OrganizeView(QWidget):
                 self.list_widget.setCurrentRow(current_row + 1)
 
     def prev_page(self):
-        """Selects the previous page in the list widget if available."""
         if self.list_widget.count() > 0:
             current_row = self.list_widget.currentRow()
             if current_row > 0:
                 self.list_widget.setCurrentRow(current_row - 1)
 
     def init_ui(self):
-        """Initializes and lays out the user interface components."""
+        """Initializes the layout and UI components of the Organize Tab."""
         self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(20, 15, 20, 20) 
+        self.layout.setContentsMargins(10, 10, 10, 10) 
         self.layout.setSpacing(10)
         
         top_container = QWidget()
@@ -185,10 +176,6 @@ class OrganizeView(QWidget):
         top_layout.setSpacing(10)
 
         title_layout = QHBoxLayout()
-        title = QLabel("Organize, Edit and Compress PDF")
-        title.setObjectName("TitleLabel")
-        title_layout.addWidget(title)
-        
         btn_select = QPushButton("Select PDF")
         btn_select.clicked.connect(self.select_file)
         self.file_label = QLabel("No file selected")
@@ -200,6 +187,8 @@ class OrganizeView(QWidget):
         control_layout = QHBoxLayout()
         self.size_combo = QComboBox()
         self.size_combo.addItems(["Original", "A4", "Letter", "Legal"])
+        self.size_combo.setView(QListView()) 
+        
         control_layout.addWidget(QLabel("<b>Force Size:</b>"))
         control_layout.addWidget(self.size_combo)
         
@@ -261,7 +250,7 @@ class OrganizeView(QWidget):
         self.list_widget.setSpacing(8)
         self.list_widget.setIconSize(QSize(130, 180))
         self.list_widget.setMaximumWidth(300) 
-        self.list_widget.setStyleSheet("background-color: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 4px;")
+        self.list_widget.setObjectName("ThumbnailList")
         
         self.list_widget.itemChanged.connect(self.sync_from_list)
         self.list_widget.model().rowsMoved.connect(self.sync_from_list)
@@ -298,11 +287,11 @@ class OrganizeView(QWidget):
         self.layout.addWidget(bottom_container)
 
     def toggle_sidebar(self):
-        """Toggles the visibility of the page thumbnail list sidebar."""
+        """Hides or shows the thumbnail list sidebar."""
         self.list_widget.setVisible(not self.list_widget.isVisible())
 
     def reset_zoom(self):
-        """Resets the zoom level to default and fits the image within the view."""
+        """Resets the viewer zoom to 1.0 and fits the image within the window."""
         self.current_zoom = 1.0
         self.viewer.resetTransform()
         self.update_viewer_vector()
@@ -321,15 +310,10 @@ class OrganizeView(QWidget):
             self.schedule_vector_render()
 
     def schedule_vector_render(self):
-        """Starts the debounce timer to update the high-resolution vector render."""
+        """Starts a debounce timer before requesting a high-resolution render."""
         self.render_timer.start()
 
     def dragEnterEvent(self, event: QDragMoveEvent):
-        """Accepts the drag event if a valid PDF file is dragged into the view.
-        
-        Args:
-            event (QDragMoveEvent): The drag enter event.
-        """
         if event.mimeData().hasUrls():
             urls = event.mimeData().urls()
             if len(urls) == 1 and urls[0].toLocalFile().lower().endswith('.pdf'):
@@ -338,26 +322,17 @@ class OrganizeView(QWidget):
         event.ignore()
 
     def dropEvent(self, event):
-        """Handles dropping a PDF file into the application.
-        
-        Args:
-            event (QDropEvent): The drop event containing the file URLs.
-        """
         file_path = event.mimeData().urls()[0].toLocalFile()
         self.load_file(file_path)
 
     def select_file(self):
-        """Opens a file dialog to allow the user to manually select a PDF file."""
+        """Opens a file dialog for the user to pick a PDF manually."""
         file, _ = QFileDialog.getOpenFileName(self, "Select PDF", "", "PDF Files (*.pdf)")
         if file: 
             self.load_file(file)
 
     def load_file(self, file_path):
-        """Loads a PDF file into the application and generates thumbnails.
-        
-        Args:
-            file_path (str | list): The path (or list containing the path) to the PDF file.
-        """
+        """Validates and loads a PDF file into the tab."""
         if isinstance(file_path, list):
             if not file_path:
                 return
@@ -371,21 +346,23 @@ class OrganizeView(QWidget):
                     self, 
                     "Protected PDF", 
                     "This file is password protected. 🔒\n\n"
-                    "Please use the 'Security and Metadata' module to unlock it before attempting to organize or edit it."
+                    "Please use the 'Security and Metadata' module to unlock it."
                 )
                 return
             doc.close()
         except Exception as e:
-            QMessageBox.critical(self, "Open Error", f"The file is damaged or could not be read:\n{str(e)}")
+            QMessageBox.critical(self, "Open Error", f"The file is damaged:\n{str(e)}")
             return
 
         self.current_file = file_path
         self.current_zoom = 1.0
-        self.file_label.setText(os.path.basename(file_path))
+        file_name = os.path.basename(file_path)
+        self.file_label.setText(file_name)
+        self.title_changed.emit(file_name)
         self.load_thumbnails()
 
     def load_thumbnails(self):
-        """Extracts pages from the loaded PDF and displays them as thumbnails in the list."""
+        """Starts the background thread to fetch thumbnails of the PDF."""
         self.list_widget.blockSignals(True)
         self.list_widget.clear()
         self.original_items.clear()
@@ -393,53 +370,61 @@ class OrganizeView(QWidget):
         self.viewer.scene.clear()
         self.viewer.pixmap_item = QGraphicsPixmapItem()
         self.viewer.scene.addItem(self.viewer.pixmap_item)
+
+        # Stop previous background tasks cleanly
+        self.clean_up()
+
+        self.worker_thread = QThread()
+        self.worker = ThumbnailWorker(self.current_file)
+        self.worker.moveToThread(self.worker_thread)
         
-        doc = fitz.open(self.current_file)
-        mat = fitz.Matrix(1.5, 1.5) 
+        self.worker_thread.started.connect(self.worker.run)
+        self.worker.progress.connect(self.add_thumbnail)
+        self.worker.finished.connect(self.worker_thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.worker_thread.finished.connect(self.worker_thread.deleteLater)
+        self.worker_thread.finished.connect(self.on_thumbnails_loaded)
         
-        for i in range(len(doc)):
-            page = doc[i]
-            pix = page.get_pixmap(matrix=mat, alpha=False)
-            img = QImage(pix.samples, pix.width, pix.height, pix.stride, QImage.Format.Format_RGB888)
-            pixmap = QPixmap.fromImage(img)
-            
-            painter = QPainter(pixmap)
-            pen = QPen(QColor("#9CA3AF")) 
-            pen.setWidth(2)               
-            painter.setPen(pen)
-            painter.drawRect(1, 1, pixmap.width() - 2, pixmap.height() - 2)
-            painter.end()
-            
-            page_num = i + 1
-            item = QListWidgetItem(QIcon(pixmap), f"Page {page_num}  (0°)")
-            item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsDragEnabled | 
-                          Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(Qt.CheckState.Checked)
-            
-            item.setData(Qt.ItemDataRole.UserRole, page_num)
-            item.setData(Qt.ItemDataRole.UserRole + 1, 0)       
-            item.setData(Qt.ItemDataRole.UserRole + 2, pixmap)  
-            
-            self.list_widget.addItem(item)
-            self.original_items[page_num] = item
-            
-        doc.close()
-            
+        self.worker_thread.start()
+
+    def add_thumbnail(self, page_num: int, img: QImage):
+        """Receives a rendered page thumbnail from the worker thread and adds it to the list."""
+        pixmap = QPixmap.fromImage(img)
+        painter = QPainter(pixmap)
+        pen = QPen(QColor("#9CA3AF")) 
+        pen.setWidth(2)               
+        painter.setPen(pen)
+        painter.drawRect(1, 1, pixmap.width() - 2, pixmap.height() - 2)
+        painter.end()
+        
+        item = QListWidgetItem(QIcon(pixmap), f"Page {page_num}  (0°)")
+        item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsDragEnabled | 
+                      Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
+        item.setCheckState(Qt.CheckState.Checked)
+        
+        item.setData(Qt.ItemDataRole.UserRole, page_num)
+        item.setData(Qt.ItemDataRole.UserRole + 1, 0)       
+        item.setData(Qt.ItemDataRole.UserRole + 2, pixmap)  
+        
+        self.list_widget.addItem(item)
+        self.original_items[page_num] = item
+
+    def on_thumbnails_loaded(self):
+        """Called once the worker thread finishes processing all pages."""
         self.list_widget.blockSignals(False)
         self.sync_from_list()
-        
-        if self.list_widget.count() > 0:
+        if self.list_widget.count() > 0 and self.list_widget.currentRow() == -1:
             self.list_widget.setCurrentRow(0)
 
     def on_page_selected(self):
-        """Triggers a fresh render with an initial zoom when a new thumbnail is selected."""
+        """Resets the viewer when the user clicks a different page thumbnail."""
         self.current_zoom = 1.0
         self.viewer.resetTransform()
         self.viewer.scale(1.5, 1.5)
         self.update_viewer_vector()
 
     def update_viewer_vector(self):
-        """Renders the currently selected page directly from PDF vector coordinates."""
+        """Performs a real-time, high-resolution re-render of the current PDF page matching the zoom level."""
         item = self.list_widget.currentItem()
         if not item or not self.current_file: return
         
@@ -471,12 +456,11 @@ class OrganizeView(QWidget):
             doc.close()
             
             self.viewer.set_image(high_res_pixmap, reset_transform=True)
-            
         except Exception as e:
-            print(f"Error vector rendering page: {e}")
+            pass
 
     def rotate_selected(self):
-        """Rotates the currently selected page 90 degrees clockwise."""
+        """Rotates the currently selected page by 90 degrees."""
         item = self.list_widget.currentItem()
         if not item: return
         
@@ -491,30 +475,26 @@ class OrganizeView(QWidget):
         transform = QTransform().rotate(new_rot)
         rotated_pixmap = original_pixmap.transformed(transform, Qt.TransformationMode.SmoothTransformation)
         item.setIcon(QIcon(rotated_pixmap))
-        
         self.update_viewer_vector()
 
     def remove_blank_pages(self):
-        """Scans the PDF for blank pages and unchecks them automatically in the list."""
+        """Scans the document for purely white pages and unchecks them automatically."""
         if not self.current_file:
-            return QMessageBox.warning(self, "Warning", "Please select a PDF first.")
+            return
             
         blank_pages = PDFProcessor.get_blank_pages(self.current_file)
-        
         if not blank_pages:
-            return QMessageBox.information(self, "Info", "No blank pages detected in this document.")
+            return
             
         items_unchecked = 0
         for i in range(self.list_widget.count()):
             item = self.list_widget.item(i)
             page_num = item.data(Qt.ItemDataRole.UserRole)
-            
             if page_num in blank_pages and item.checkState() == Qt.CheckState.Checked:
                 item.setCheckState(Qt.CheckState.Unchecked)
                 items_unchecked += 1
                 
         self.sync_from_list() 
-        
         if items_unchecked > 0:
             QMessageBox.information(
                 self, 
@@ -524,7 +504,7 @@ class OrganizeView(QWidget):
             )
 
     def sync_from_text(self):
-        """Parses the manual page range input and updates the thumbnail list checks and order."""
+        """Parses the text input field (e.g., '1-3, 5') and reflects it visually in the list widget."""
         text = self.range_input.text().strip()
         parsed_order = []
         parts = text.split(',')
@@ -591,7 +571,7 @@ class OrganizeView(QWidget):
         self.sync_from_list()
 
     def sync_from_list(self, *args):
-        """Updates the manual page range text input based on the checked items in the list widget."""
+        """Translates the active visual selection in the list widget back to the string text input."""
         self.range_input.blockSignals(True)
         selected = []
         for i in range(self.list_widget.count()):
@@ -612,16 +592,14 @@ class OrganizeView(QWidget):
                     start = end = p
             ranges.append(str(start) if start == end else f"{start}-{end}")
             self.range_input.setText(", ".join(ranges))
-            
-        self.range_input.blockSignals(False)
+            self.range_input.blockSignals(False)
 
     def save_pdf(self):
-        """Processes the PDF with all requested transformations and saves it to a new file."""
+        """Prompts the user to save and sends the organization data to the backend processor."""
         if not self.current_file: 
             return QMessageBox.warning(self, "Error", "Please select a PDF first.")
         
         page_range = self.range_input.text()
-        
         rotations = {}
         idx = 0
         for i in range(self.list_widget.count()):
@@ -640,3 +618,124 @@ class OrganizeView(QWidget):
                 QMessageBox.information(self, "Success", msg)
             else:
                 QMessageBox.critical(self, "Error", msg)
+
+    def clean_up(self):
+        """Safely stops threads, intercepts RuntimeError from deleted C++ objects, and releases memory."""
+        if hasattr(self, 'render_timer'):
+            self.render_timer.stop()
+            
+        if hasattr(self, 'worker_thread'):
+            try:
+                if self.worker_thread.isRunning():
+                    self.worker.is_cancelled = True
+                    try:
+                        self.worker.progress.disconnect()
+                        self.worker_thread.finished.disconnect()
+                    except Exception:
+                        pass
+                    self.worker_thread.quit()
+                    self.worker_thread.wait()
+            except RuntimeError:
+                pass
+
+
+class OrganizeView(QWidget):
+    """Tab manager for the Organize module.
+    
+    Hosts multiple OrganizeTabs allowing users to work on multiple PDFs
+    concurrently in a browser-like interface.
+    """
+    def __init__(self):
+        super().__init__()
+        self.init_ui()
+
+    def init_ui(self):
+        """Initializes the main layout containing the TabWidget."""
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(10, 10, 10, 10)
+        
+        title = QLabel("Organize, Edit and Compress PDF")
+        title.setObjectName("TitleLabel")
+        self.layout.addWidget(title)
+
+        self.tabs = QTabWidget()
+        self.tabs.setTabsClosable(False)
+        self.layout.addWidget(self.tabs)
+        
+        btn_add_tab = QPushButton("+")
+        btn_add_tab.setProperty("class", "SecondaryButton")
+        btn_add_tab.setToolTip("Open New Tab")
+        btn_add_tab.clicked.connect(lambda: self.add_new_tab())
+        self.tabs.setCornerWidget(btn_add_tab, Qt.Corner.TopRightCorner)
+
+        self.add_new_tab()
+
+    def add_new_tab(self, file_path=None):
+        """Creates a new Organize workspace tab and assigns a discrete close button.
+        
+        Args:
+            file_path (str, optional): An absolute path to automatically load upon creation.
+        """
+        tab = OrganizeTab()
+        idx = self.tabs.addTab(tab, "New PDF")
+        
+        close_btn = QPushButton("x")
+        close_btn.setProperty("class", "DiscreteCloseButton")
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.clicked.connect(lambda checked, t=tab: self.close_tab(self.tabs.indexOf(t)))
+        self.tabs.tabBar().setTabButton(idx, QTabBar.ButtonPosition.RightSide, close_btn)
+        
+        tab.title_changed.connect(lambda title, t=tab: self.update_tab_title(t, title))
+        
+        self.tabs.setCurrentIndex(idx)
+        if file_path:
+            tab.load_file(file_path)
+
+    def close_tab(self, index: int):
+        """Safely closes and removes a tab based on its dynamically computed index.
+        
+        Args:
+            index (int): The current dynamic index of the tab widget.
+        """
+        if index < 0:
+            return
+        widget = self.tabs.widget(index)
+        if widget:
+            self.tabs.removeTab(index) 
+            if hasattr(widget, 'clean_up'):
+                widget.clean_up()
+            widget.deleteLater()
+            
+        if self.tabs.count() == 0:
+            self.add_new_tab()
+
+    def update_tab_title(self, tab_widget: QWidget, title: str):
+        """Updates the title of a specific tab safely based on the loaded file.
+        
+        Args:
+            tab_widget (QWidget): The specific tab instance to update.
+            title (str): The new string to display.
+        """
+        idx = self.tabs.indexOf(tab_widget)
+        if idx != -1:
+            self.tabs.setTabText(idx, title)
+
+    def add_files(self, files):
+        """API for external modules to send files to Organize ensuring stability.
+        
+        Args:
+            files (list[str] or str): The file path(s) received from external modules.
+        """
+        if isinstance(files, str):
+            files = [files]
+            
+        if not files:
+            return
+            
+        file_path = files[0]
+        current_tab = self.tabs.currentWidget()
+        
+        if current_tab and not current_tab.current_file:
+            current_tab.load_file(file_path)
+        else:
+            self.add_new_tab(file_path)

@@ -1,35 +1,33 @@
 ; installer.iss
+; Inno Setup Script para HRDigiTool (Modo Instalador con Acceso Directo)
 
 [Setup]
-; Información básica de tu aplicación
 AppName=HRDigiTool
-AppVersion=1.0
-AppPublisher=Tu Nombre o Empresa
+AppVersion=1.1.1
+AppPublisher=HR DigiTool
 DefaultDirName={autopf}\HRDigiTool
 DefaultGroupName=HRDigiTool
-; Dónde se guardará el instalador final
-OutputDir=.\dist
-; Nombre del instalador generado
+; Dónde se guardará el instalador final comprimido
+OutputDir=.\dist_installer
 OutputBaseFilename=HRDigiTool_Setup
-Compression=lzma
+Compression=lzma2/ultra64
 SolidCompression=yes
-; Opcional: Si tienes un ícono para el instalador
-; SetupIconFile=assets\icon.ico 
+SetupIconFile=LOGO.ico
 
 [Tasks]
-; Esta sección crea la casilla de verificación en el instalador para el acceso directo
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+; Opcion para crear el acceso directo en el escritorio (marcada por defecto)
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-; Toma el ejecutable generado por PyInstaller (asumiendo modo onefile)
-Source: "dist\HRDigiTool.exe"; DestDir: "{app}"; Flags: ignoreversion
+; Copia TODA la carpeta generada por PyInstaller en dist\HRDigiTool
+Source: "dist\HRDigiTool\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-; Crea el acceso directo en el menú de inicio
-Name: "{group}\HRDigiTool"; Filename: "{app}\HRDigiTool.exe"
-; Crea el acceso directo en el escritorio (vinculado a la tarea [Tasks])
-Name: "{autodesktop}\HRDigiTool"; Filename: "{app}\HRDigiTool.exe"; Tasks: desktopicon
+; Crea el acceso directo en el Menú de Inicio
+Name: "{group}\HRDigiTool"; Filename: "{app}\HRDigiTool.exe"; IconFilename: "{app}\LOGO.ico"
+; Crea el acceso directo en el Escritorio apuntando directamente al ejecutable
+Name: "{autodesktop}\HRDigiTool"; Filename: "{app}\HRDigiTool.exe"; Tasks: desktopicon; IconFilename: "{app}\LOGO.ico"
 
 [Run]
-; Permite al usuario abrir la aplicación al terminar de instalar
+; Casilla final para ejecutar la aplicación inmediatamente tras instalar
 Filename: "{app}\HRDigiTool.exe"; Description: "{cm:LaunchProgram,HRDigiTool}"; Flags: nowait postinstall skipifsilent

@@ -170,26 +170,34 @@ class MainWindow(QMainWindow):
         Args:
             temp_pdf_path (str): The absolute path to the generated temporary PDF file.
         """
-        self.organize_view.load_file(temp_pdf_path)
-        self.switch_view(3)
+        self.stacked_widget.setCurrentIndex(3)
         
-    def route_file_to_module(self, module_index: int, file_path: str | list[str]):
-        """Forwards a file from the Reader view to a specific destination module and switches to it.
+        if temp_pdf_path:
+            self.organize_view.add_files([temp_pdf_path])
+        
+    def route_file_to_module(self, module_index: int, files: list[str]):
+        """Routes a list of files to a specific module based on its index.
+
+        Automatically switches the view to the target module and forwards the files 
+        using the standardized add_files API.
 
         Args:
-            module_index (int): The index of the target view in the stacked widget.
-            file_path (str | list[str]): The path (or list of paths) to the file being routed.
+            module_index (int): The index of the target module in the stacked widget.
+            files (list[str]): A list of absolute file paths to be processed.
         """
-        self.switch_view(module_index)
+        self.stacked_widget.setCurrentIndex(module_index)
         
-        pure_path = file_path[0] if isinstance(file_path, list) and file_path else file_path
-
-        if module_index == 2:
-            self.merge_view.add_files([pure_path])
+        if not files:
+            return
+            
+        if module_index == 1:
+            self.reader_view.add_files(files)
+        elif module_index == 2:
+            self.merge_view.add_files(files)
         elif module_index == 3:
-            self.organize_view.load_file(pure_path)
+            self.organize_view.add_files(files)
         elif module_index == 4:
-            self.security_view.load_file(pure_path)
+            self.security_view.add_files(files)
 
     def switch_view(self, index: int):
         """Changes the visible view in the stacked widget and synchronizes the UI state.

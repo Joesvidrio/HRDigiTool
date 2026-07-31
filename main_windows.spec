@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller specification file for building the HR DigiTool Windows Executable (One-File).
+PyInstaller specification file for building the HR DigiTool Windows Executable
+in Directory Mode (-D / onedir) for instant startup performance.
 """
 
 block_cipher = None
@@ -13,6 +14,7 @@ a = Analysis(
     datas=[
         ('LOGO.png', '.'),
         ('assets', 'assets'),
+        ('LOGO.ico', '.'), # Incluimos el icono para que Inno Setup lo use como acceso directo
     ],
     hiddenimports=[],
     hookspath=[],
@@ -37,25 +39,34 @@ a = Analysis(
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
-# 3. El bloque EXE ahora empaca todo (scripts, binaries, datas) en un solo archivo
+# 3. Bloque EXE: genera únicamente el punto de entrada ejecutable
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,  # Requerido para modo directorio (-D)
     name='HRDigiTool',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=False,              
-    upx=True,                 
-    upx_exclude=[],
-    runtime_tmpdir=None,      # Necesario para extraer los temporales del One-File en tiempo de ejecución
-    console=False,            # Oculta la consola negra de Windows
+    strip=False,
+    upx=True,
+    console=False,         # Oculta la consola negra de Windows
     disable_windowed_traceback=False,
-    argv_emulation=False,     
+    argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['LOGO.ico'],        
+    icon=['LOGO.ico'],
+)
+
+# 4. Bloque COLLECT: Agrupa el ejecutable, DLLs y assets en la carpeta dist/HRDigiTool
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='HRDigiTool',
 )

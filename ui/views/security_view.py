@@ -60,8 +60,15 @@ class SecurityView(QWidget):
         self.file_label = QLabel("No file selected")
         self.file_label.setStyleSheet("color: #6c757d; font-style: italic;")
         
+        self.btn_clear = QPushButton("x")
+        self.btn_clear.setProperty("class", "DiscreteCloseButton")
+        self.btn_clear.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_clear.clicked.connect(self.clear_file)
+        self.btn_clear.hide()
+        
         file_layout.addWidget(btn_select)
         file_layout.addWidget(self.file_label)
+        file_layout.addWidget(self.btn_clear)
         file_layout.addStretch()
         layout.addLayout(file_layout)
 
@@ -149,6 +156,13 @@ class SecurityView(QWidget):
         if file_path and isinstance(file_path, str):
             self.current_file = file_path
             self.file_label.setText(os.path.basename(file_path))
+            self.btn_clear.show()
+
+    def clear_file(self):
+        """Clears the currently selected file and hides the remove button."""
+        self.current_file = None
+        self.file_label.setText("No file selected")
+        self.btn_clear.hide()
 
     def clean_metadata(self):
         """Handles the user flow to strip metadata from the currently loaded PDF and save it."""

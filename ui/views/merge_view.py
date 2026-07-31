@@ -3,7 +3,7 @@ import tempfile
 import fitz
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                              QLabel, QFileDialog, QListWidget, QAbstractItemView, 
-                             QListWidgetItem, QMessageBox, QComboBox)
+                             QListWidgetItem, QMessageBox, QComboBox, QListView)
 from PyQt6.QtCore import Qt, QTimer
 from backend.pdf_core import PDFProcessor
 
@@ -77,6 +77,7 @@ class MergeView(QWidget):
         
         self.size_combo = QComboBox()
         self.size_combo.addItems(["Original", "A4", "Letter", "Legal"])
+        self.size_combo.setView(QListView())
         
         top_layout.addWidget(btn_add)
         top_layout.addWidget(QLabel("<b>Page Size:</b>"))
@@ -219,9 +220,9 @@ class MergeView(QWidget):
             
             lbl = QLabel(os.path.basename(file_path))
             
-            btn_x = QPushButton("X")
+            btn_x = QPushButton("x")
             btn_x.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn_x.setProperty("class", "CloseButton")
+            btn_x.setProperty("class", "DiscreteCloseButton")
             btn_x.clicked.connect(lambda checked, idx_item=item: self.remove_item(idx_item))
             
             layout.addWidget(lbl)

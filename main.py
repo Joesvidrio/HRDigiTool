@@ -1,31 +1,68 @@
-"""
-Application entry point for the HR Digitalization Tool.
-
-This module initializes the PyQt6 application, sets the application-wide 
-icon and stylesheet, and instantiates the main window. It also passes 
-command-line arguments to handle OS-level "Open with..." file operations.
-"""
-
 import os
 import sys
 
 from PyQt6.QtGui import QIcon 
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 
 from ui.main_window import MainWindow
 from utils import get_resource_path
 
+SERVER_NAME = "HR_Digitalization_Tool_SingleInstance"
+
+class SingleApplication(QApplication):
+    """Application class that enforces a single running instance via QLocalSockets.
+
+    Attributes:
+        main_window (MainWindow): Reference to the primary application window.
+        is_running (bool): Flag indicating if another instance is already active.
+        socket (QLocalSocket): Socket used to verify active instances.
+        server (QLocalServer): Server used to listen for incoming external files.
+    """
+
+    def __init__(self, argv):
+        super().__init__(argv)
+        self.main_window = None
+        self.is_running = False
+        
+        self.socket = QLocalSocket()
+        self.socket.connectToServer(SERVER_NAME)
+        
+        if self.socket.waitForConnected(500):
+            self.is_running = True
+            if len(argv) > 1:
+                full_path = " ".join(argv[1:])
+                if os.path.exists(full_path):
+                    self.socket.write(full_path.encode('utf-8'))
+                    self.socket.waitForBytesWritten(500)
+        else:
+            self.server = QLocalServer()
+            QLocalServer.removeServer(SERVER_NAME)
+            self.server.listen(SERVER_NAME)
+            self.server.newConnection.connect(self.handle_new_connection)
+
+    def handle_new_connection(self):
+        """Processes incoming connections from secondary instances and triggers file loading."""
+        socket = self.server.nextPendingConnection()
+        if socket.waitForReadyRead(500):
+            file_path = socket.readAll().data().decode('utf-8')
+            if self.main_window and os.path.exists(file_path):
+                self.main_window.handle_external_file(file_path)
+                self.main_window.showMaximized()
+                self.main_window.activateWindow()
+
 
 def main():
-    """
-    Initializes and runs the main PyQt6 application loop.
+    """Initializes and runs the main PyQt6 application loop.
     
-    Sets up the application instance, applies the global stylesheet and icon,
-    and initializes the MainWindow, passing in any command-line arguments to 
-    support opening files directly from the operating system.
+    Sets up the application instance, applying the global stylesheet and icon.
+    Validates single-instance execution and initializes the MainWindow.
     """
-    app = QApplication(sys.argv)
+    app = SingleApplication(sys.argv)
     
+    if app.is_running:
+        sys.exit(0)
+        
     icon_path = get_resource_path("LOGO.png")
     app.setWindowIcon(QIcon(icon_path))
     
@@ -41,7 +78,8 @@ def main():
             args = [args[0], full_path]
     
     window = MainWindow(args)
-    window.show()
+    app.main_window = window
+    window.showMaximized()
     
     sys.exit(app.exec())
 

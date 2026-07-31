@@ -13,3 +13,6 @@ dist/
 # IDEs
 .vscode/
 .idea/
+
+/logo.icns
+/main_mac.spec
