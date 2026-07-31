@@ -1,6 +1,8 @@
 import os
 import sys
 
+# Agregamos QTimer a la importación
+from PyQt6.QtCore import QEvent, QTimer 
 from PyQt6.QtGui import QIcon 
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
@@ -10,20 +12,24 @@ from utils import get_resource_path
 
 SERVER_NAME = "HR_Digitalization_Tool_SingleInstance"
 
+
 class SingleApplication(QApplication):
-    """Application class that enforces a single running instance via QLocalSockets.
+    """Application class that enforces a single running instance via QLocalSockets
+    and intercepts native OS file opening events safely.
 
     Attributes:
         main_window (MainWindow): Reference to the primary application window.
         is_running (bool): Flag indicating if another instance is already active.
         socket (QLocalSocket): Socket used to verify active instances.
         server (QLocalServer): Server used to listen for incoming external files.
+        _pending_file (str): Temporary storage for file paths received before window init.
     """
 
     def __init__(self, argv):
         super().__init__(argv)
         self.main_window = None
         self.is_running = False
+        self._pending_file = None
         
         self.socket = QLocalSocket()
         self.socket.connectToServer(SERVER_NAME)
@@ -41,23 +47,39 @@ class SingleApplication(QApplication):
             self.server.listen(SERVER_NAME)
             self.server.newConnection.connect(self.handle_new_connection)
 
+    def event(self, event: QEvent) -> bool:
+        """Overrides application event handling to capture native OS file open events.
+        Defers UI updates to prevent macOS thread blocking and crashes.
+        """
+        if event.type() == QEvent.Type.FileOpen:
+            file_path = event.file()
+            if file_path and os.path.exists(file_path):
+                if self.main_window:
+                    # CRÍTICO: Diferimos la carga del PDF para no bloquear el evento nativo de macOS
+                    QTimer.singleShot(0, lambda: self._safe_open_file(file_path))
+                else:
+                    self._pending_file = file_path
+            return True
+        return super().event(event)
+
+    def _safe_open_file(self, file_path: str):
+        """Safely loads an external file into the main window after the event loop stabilizes."""
+        self.main_window.handle_external_file(file_path)
+        self.main_window.showMaximized()
+        self.main_window.activateWindow()
+
     def handle_new_connection(self):
         """Processes incoming connections from secondary instances and triggers file loading."""
         socket = self.server.nextPendingConnection()
         if socket.waitForReadyRead(500):
             file_path = socket.readAll().data().decode('utf-8')
             if self.main_window and os.path.exists(file_path):
-                self.main_window.handle_external_file(file_path)
-                self.main_window.showMaximized()
-                self.main_window.activateWindow()
+                # También diferimos aquí por extrema precaución y estabilidad
+                QTimer.singleShot(0, lambda: self._safe_open_file(file_path))
 
 
 def main():
-    """Initializes and runs the main PyQt6 application loop.
-    
-    Sets up the application instance, applying the global stylesheet and icon.
-    Validates single-instance execution and initializes the MainWindow.
-    """
+    """Initializes and runs the main PyQt6 application loop."""
     app = SingleApplication(sys.argv)
     
     if app.is_running:
@@ -79,6 +101,10 @@ def main():
     
     window = MainWindow(args)
     app.main_window = window
+    
+    if app._pending_file:
+        window.handle_external_file(app._pending_file)
+        
     window.showMaximized()
     
     sys.exit(app.exec())

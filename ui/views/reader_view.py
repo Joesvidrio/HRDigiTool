@@ -383,7 +383,8 @@ class ReaderTab(QWidget):
         file_name = os.path.basename(file_path)
         self.file_label.setText(file_name)
         self.title_changed.emit(file_name)
-        self.load_thumbnails()
+        
+        QTimer.singleShot(150, self.load_thumbnails)
 
     def load_thumbnails(self):
         """Generates thumbnails for the PDF safely preventing C++ object deletions."""
@@ -392,20 +393,14 @@ class ReaderTab(QWidget):
         self.viewer.scene.clear()
         self.viewer.pixmap_item = None
         
-        # Safe thread interruption
         if hasattr(self, 'worker_thread'):
             try:
                 if self.worker_thread.isRunning():
                     self.worker.is_cancelled = True
-                    try:
-                        self.worker.progress.disconnect()
-                        self.worker_thread.finished.disconnect()
-                    except Exception:
-                        pass
                     self.worker_thread.quit()
                     self.worker_thread.wait()
             except RuntimeError:
-                pass # C++ object was already deleted, safe to continue
+                pass
 
         self.worker_thread = QThread()
         self.worker = ThumbnailWorker(self.current_file)
@@ -414,8 +409,6 @@ class ReaderTab(QWidget):
         self.worker_thread.started.connect(self.worker.run)
         self.worker.progress.connect(self.add_thumbnail)
         self.worker.finished.connect(self.worker_thread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.worker_thread.finished.connect(self.worker_thread.deleteLater)
         self.worker_thread.finished.connect(self.on_thumbnails_loaded)
         
         self.worker_thread.start()
@@ -435,7 +428,8 @@ class ReaderTab(QWidget):
         self.current_zoom = 1.0
         self.viewer.resetTransform()
         self.viewer.scale(1.5, 1.5)
-        self.update_viewer_vector()
+        
+        QTimer.singleShot(50, self.update_viewer_vector)
 
     def update_viewer_vector(self):
         item = self.list_widget.currentItem()
@@ -482,15 +476,10 @@ class ReaderTab(QWidget):
             try:
                 if self.worker_thread.isRunning():
                     self.worker.is_cancelled = True
-                    try:
-                        self.worker.progress.disconnect()
-                        self.worker_thread.finished.disconnect()
-                    except Exception:
-                        pass
                     self.worker_thread.quit()
                     self.worker_thread.wait()
             except RuntimeError:
-                pass # C++ object was already deleted, safe to continue
+                pass 
                 
         if hasattr(self, 'doc') and self.doc:
             self.doc.close()
@@ -559,7 +548,7 @@ class ReaderView(QWidget):
             return
         widget = self.tabs.widget(index)
         if widget:
-            self.tabs.removeTab(index) # Critical fix: Remove from UI before destruction
+            self.tabs.removeTab(index)
             if hasattr(widget, 'clean_up'):
                 widget.clean_up()
             widget.deleteLater()

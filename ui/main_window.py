@@ -2,8 +2,8 @@ import sys
 import os
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QPushButton, QStackedWidget)
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon 
+from PyQt6.QtCore import Qt, QEvent
+from PyQt6.QtGui import QIcon, QFileOpenEvent 
 from utils import get_resource_path
 
 from ui.views.home_view import HomeView
@@ -42,6 +42,9 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("HR Digitalization Tool") 
         self.resize(1200, 800)
+        
+        # Track loaded startup files to prevent double-loading on macOS
+        self.opened_startup_files = set()
         
         logo_path = get_resource_path("LOGO.png")
         if os.path.exists(logo_path):
@@ -88,11 +91,16 @@ class MainWindow(QMainWindow):
         self.top_bar.hide()
         self.stacked_widget.setCurrentIndex(0)
 
+        # 1. Catch Application-level FileOpen events (macOS Open With)
+        app = QApplication.instance()
+        if app:
+            app.installEventFilter(self)
+
+        # 2. Check traditional terminal arguments
         if argv and len(argv) > 1:
             file_path = argv[1]
             if os.path.isfile(file_path) and file_path.lower().endswith('.pdf'):
-                self.switch_view(1) 
-                self.reader_view.load_file(file_path)
+                self.handle_external_file(file_path)
 
     def setup_sidebar(self):
         """Constructs the sidebar navigation menu.
@@ -226,3 +234,35 @@ class MainWindow(QMainWindow):
         self.top_bar.hide() 
         for btn in self.sidebar_buttons:
             btn.setChecked(False)
+
+    def handle_external_file(self, file_path: str):
+        """Safely processes files coming from the OS (Terminal or Double-Click).
+        
+        Args:
+            file_path (str): The absolute path of the PDF.
+        """
+        if file_path in self.opened_startup_files:
+            return
+            
+        self.opened_startup_files.add(file_path)
+        
+        # We ensure that the UI is fully built before attempting to load
+        if hasattr(self, 'reader_view'):
+            self.switch_view(1)
+            self.reader_view.add_files(file_path)
+
+    def eventFilter(self, obj, event: QEvent) -> bool:
+        """Application-level event filter to catch macOS AppleEvents safely.
+        
+        Intercepts QFileOpenEvent which macOS triggers when users double-click 
+        a file or use 'Open With...'. It safely routes it to handle_external_file.
+        """
+        if event.type() == QEvent.Type.FileOpen:
+            file_open_event = event  # type: QFileOpenEvent
+            file_path = file_open_event.file()
+            
+            if file_path and file_path.lower().endswith('.pdf'):
+                self.handle_external_file(file_path)
+                return True
+                
+        return super().eventFilter(obj, event)
